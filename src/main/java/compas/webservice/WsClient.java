@@ -1,52 +1,57 @@
 package compas.webservice;
 
-import hellios.wsdl.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Bean;
+import compas.api.UpstreamException;
+import hellios.wsdl.Device;
+import hellios.wsdl.DeviceInfo;
+import hellios.wsdl.DeviceToSave;
+import hellios.wsdl.Greeting;
+import hellios.wsdl.Person;
+import hellios.wsdl.SavedDevice;
+import org.springframework.oxm.UnmarshallingFailureException;
 import org.springframework.stereotype.Component;
+import org.springframework.ws.InvalidXmlException;
+import org.springframework.ws.client.WebServiceClientException;
 import org.springframework.ws.client.core.WebServiceTemplate;
+import org.springframework.ws.soap.SoapMessageCreationException;
 
-/**
- * Created by CLLSDJACKT013 on 25/01/2018.
- */
-/*
--@Component annotation informs Spring to import this bean into the container if automatic component scan is enabled
--@SpringBootApplication annotation at the entry point of the application performs ComponentScan by default
- */
 @Component
 public class WsClient {
-    @Autowired
-    private WebServiceTemplate webServiceTemplate;
-    private Logger logger = LoggerFactory.getLogger(WsClient.class);
-    //private ObjectFactory factory = new ObjectFactory();
+    private final WebServiceTemplate template;
 
+    public WsClient(WebServiceTemplate template) {
+        this.template = template;
+    }
 
-    public Greeting sayHello(String firstName,String lastName){
-        ObjectFactory factory = new ObjectFactory();
-        Person person = factory.createPerson();
-        //person = new Person();
+    public Greeting sayHello(String firstName, String lastName) {
+        Person person = new Person();
         person.setFirstName(firstName);
         person.setLastName(lastName);
-        Greeting greeting = (Greeting)webServiceTemplate.marshalSendAndReceive(person);
-        logger.info("WS said >>>>" +greeting.getGreeting());
-        return greeting;
-    }
-    public DeviceInfo queryDevice(String macAddress,String sNO){
-        ObjectFactory factory = new ObjectFactory();
-        Device device = factory.createDevice();
-        device.setMacAddress(macAddress);
-        device.setSNO(sNO);
-        DeviceInfo deviceInfo = (DeviceInfo)webServiceTemplate.marshalSendAndReceive(device);
-        return deviceInfo;
+        return send(person, Greeting.class);
     }
 
-    public SavedDevice saveDevice(DeviceToSave deviceToSave){
-        logger.info("------------------------------");
-        logger.info("Inside WS client saveDevice method");
-        SavedDevice savedDevice = (SavedDevice) webServiceTemplate.marshalSendAndReceive(deviceToSave);
-        logger.info("ok...");
-        return savedDevice;
+    public DeviceInfo queryDevice(String macAddress, String serial) {
+        Device device = new Device();
+        device.setMacAddress(macAddress);
+        device.setSNO(serial);
+        return send(device, DeviceInfo.class);
+    }
+
+    public SavedDevice saveDevice(DeviceToSave device) {
+        return send(device, SavedDevice.class);
+    }
+
+    private <T> T send(Object request, Class<T> responseType) {
+        Object response;
+        try {
+            response = template.marshalSendAndReceive(request);
+        } catch (WebServiceClientException | UnmarshallingFailureException
+                | InvalidXmlException | SoapMessageCreationException exception) {
+            throw new UpstreamException("SOAP request failed", exception);
+        }
+        if (!responseType.isInstance(response)) {
+            throw new UpstreamException("SOAP response did not match the operation",
+                    new IllegalStateException("Expected " + responseType.getSimpleName()));
+        }
+        return responseType.cast(response);
     }
 }
