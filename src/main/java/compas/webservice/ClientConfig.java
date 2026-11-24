@@ -1,42 +1,30 @@
 package compas.webservice;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.oxm.jaxb.Jaxb2Marshaller;
 import org.springframework.ws.client.core.WebServiceTemplate;
+import org.springframework.ws.transport.http.HttpUrlConnectionMessageSender;
 
-/**
- * Created by CLLSDJACKT013 on 25/01/2018.
- */
-/*
--@Configuration annotation is used by Spring IoC container as a source of Bean definitions
- */
-@Configuration
+@Configuration(proxyBeanMethods = false)
 public class ClientConfig {
-    @Value("http://localhost:9000/codenotfound/ws/lct")
-    String defaultUri;
-    /*
-    -WebServiceTemplate is the core class for client-side WS access in Spring
-    -It is used to send and receive responses
-    -Additionally it can Marshal and UnMarshal objects into and from XML
-     */
     @Bean
-    public WebServiceTemplate webServiceTemplate(){
-        WebServiceTemplate webServiceTemplate = new WebServiceTemplate();
-        webServiceTemplate.setMarshaller(jaxb2Marshaller());
-        webServiceTemplate.setUnmarshaller(jaxb2Marshaller());
-        webServiceTemplate.setDefaultUri(defaultUri);
-        return webServiceTemplate;
+    public WebServiceTemplate webServiceTemplate(Jaxb2Marshaller marshaller, SoapProperties properties) {
+        HttpUrlConnectionMessageSender sender = new HttpUrlConnectionMessageSender();
+        sender.setConnectionTimeout(properties.connectTimeout());
+        sender.setReadTimeout(properties.readTimeout());
+        WebServiceTemplate template = new WebServiceTemplate();
+        template.setMarshaller(marshaller);
+        template.setUnmarshaller(marshaller);
+        template.setDefaultUri(properties.uri().toString());
+        template.setMessageSender(sender);
+        return template;
     }
-    /*
-    -we will use Jaxb2Marshaller to serialize and deserialize objects into and from XML
-    -Set contextPath is th name of the derived package from the wsdl file as defined in pom.xml
-     */
+
     @Bean
-    public Jaxb2Marshaller jaxb2Marshaller(){
-        Jaxb2Marshaller jaxb2Marshaller = new Jaxb2Marshaller();
-        jaxb2Marshaller.setContextPath("hellios.wsdl");
-        return jaxb2Marshaller;
+    public Jaxb2Marshaller jaxb2Marshaller() {
+        Jaxb2Marshaller marshaller = new Jaxb2Marshaller();
+        marshaller.setContextPath("hellios.wsdl");
+        return marshaller;
     }
 }
